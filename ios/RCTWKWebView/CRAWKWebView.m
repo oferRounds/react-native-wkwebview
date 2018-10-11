@@ -37,6 +37,8 @@
 @property (assign) BOOL sendCookies;
 @property (nonatomic, strong) WKUserScript *atStartScript;
 @property (nonatomic, strong) WKUserScript *atEndScript;
+@property (nonatomic, strong) NSURL *URL;
+
 
 @end
 
@@ -69,6 +71,8 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     WKUserContentController* userController = [[WKUserContentController alloc]init];
     [userController addScriptMessageHandler:[[WeakScriptMessageDelegate alloc] initWithDelegate:self] name:@"reactNative"];
     config.userContentController = userController;
+    config.allowsInlineMediaPlayback = YES;
+
     
     _webView = [[WKWebView alloc] initWithFrame:self.bounds configuration:config];
     _webView.UIDelegate = self;
@@ -155,16 +159,17 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
 - (void)loadRequest:(NSURLRequest *)request
 {
-  if (request.URL && _sendCookies) {
-    NSDictionary *cookies = [NSHTTPCookie requestHeaderFieldsWithCookies:[[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:request.URL]];
-    if ([cookies objectForKey:@"Cookie"]) {
-      NSMutableURLRequest *mutableRequest = request.mutableCopy;
-      [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"Cookie"];
-      request = mutableRequest;
+    if (request.URL && _sendCookies) {
+        NSDictionary *cookies = [NSHTTPCookie requestHeaderFieldsWithCookies:[[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:request.URL]];
+        if ([cookies objectForKey:@"Cookie"]) {
+            NSMutableURLRequest *mutableRequest = request.mutableCopy;
+            [mutableRequest setAllHTTPHeaderFields:[NSHTTPCookie requestHeaderFieldsWithCookies:[NSHTTPCookieStorage sharedHTTPCookieStorage].cookies]];
+            request = mutableRequest;
+        }
     }
-  }
-  
-  [_webView loadRequest:request];
+
+    self.URL = request.URL;
+    [_webView loadRequest:request];
 }
 
 -(void)setAllowsLinkPreview:(BOOL)allowsLinkPreview
@@ -298,8 +303,13 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 
 - (void)reload
 {
-  [_webView reload];
+    if (self.URL) {
+        [_webView loadRequest:[NSURLRequest requestWithURL:self.URL]];
+    } else {
+        [_webView reload];
+    }
 }
+
 
 - (void)stopLoading
 {
@@ -352,6 +362,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
       [_webView loadHTMLString:@"" baseURL:nil];
       return;
     }
+      
     [self loadRequest:request];
   }
 }
