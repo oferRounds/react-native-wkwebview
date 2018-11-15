@@ -163,7 +163,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
         NSDictionary *cookies = [NSHTTPCookie requestHeaderFieldsWithCookies:[[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:request.URL]];
         if ([cookies objectForKey:@"Cookie"]) {
             NSMutableURLRequest *mutableRequest = request.mutableCopy;
-            [mutableRequest setAllHTTPHeaderFields:[NSHTTPCookie requestHeaderFieldsWithCookies:[NSHTTPCookieStorage sharedHTTPCookieStorage].cookies]];
+            [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"Cookie"];
             request = mutableRequest;
         }
     }
@@ -304,7 +304,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 - (void)reload
 {
     if (self.URL) {
-        [_webView loadRequest:[NSURLRequest requestWithURL:self.URL]];
+        [self loadRequest:[NSURLRequest requestWithURL:self.URL]];
     } else {
         [_webView reload];
     }
@@ -624,9 +624,17 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
   if (_onNavigationResponse) {
     NSDictionary *headers = @{};
     NSInteger statusCode = 200;
-    if([navigationResponse.response isKindOfClass:[NSHTTPURLResponse class]]){
+    NSURLResponse *urlResponse;
+    
+    if([urlResponse isKindOfClass:[NSHTTPURLResponse class]]){
         headers = ((NSHTTPURLResponse *)navigationResponse.response).allHeaderFields;
         statusCode = ((NSHTTPURLResponse *)navigationResponse.response).statusCode;
+      
+      if (_sendCookies) {
+        NSURL *url = urlResponse.URL;
+        NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:headers forURL:url];
+        [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:url mainDocumentURL:nil];
+      }
     }
 
     NSMutableDictionary<NSString *, id> *event = [self baseEvent];
@@ -635,6 +643,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
                                       @"status": [NSHTTPURLResponse localizedStringForStatusCode:statusCode],
                                       @"statusCode": @(statusCode),
                                       }];
+    
     _onNavigationResponse(event);
   }
 
