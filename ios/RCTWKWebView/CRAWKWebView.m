@@ -66,14 +66,23 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     _automaticallyAdjustContentInsets = YES;
     _contentInset = UIEdgeInsetsZero;
     
+    
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.processPool = processPool;
-    WKUserContentController* userController = [[WKUserContentController alloc]init];
+    
+    
+    WKUserContentController *userController = [WKUserContentController new];
     [userController addScriptMessageHandler:[[WeakScriptMessageDelegate alloc] initWithDelegate:self] name:@"reactNative"];
+    
+    NSArray<NSHTTPCookie *> *cookies = [NSHTTPCookieStorage sharedHTTPCookieStorage].cookies;
+    
+    [cookies enumerateObjectsUsingBlock:^(NSHTTPCookie * _Nonnull cookie, NSUInteger idx, BOOL * _Nonnull stop) {
+      [config.websiteDataStore.httpCookieStore setCookie:cookie completionHandler:NULL];
+    }];
+    
     config.userContentController = userController;
     config.allowsInlineMediaPlayback = YES;
 
-    
     _webView = [[WKWebView alloc] initWithFrame:self.bounds configuration:config];
     _webView.UIDelegate = self;
     _webView.navigationDelegate = self;
@@ -164,6 +173,7 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
         if ([cookies objectForKey:@"Cookie"]) {
             NSMutableURLRequest *mutableRequest = request.mutableCopy;
             [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"Cookie"];
+            [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"cookie"];
             request = mutableRequest;
         }
     }
@@ -624,17 +634,10 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
   if (_onNavigationResponse) {
     NSDictionary *headers = @{};
     NSInteger statusCode = 200;
-    NSURLResponse *urlResponse;
     
-    if([urlResponse isKindOfClass:[NSHTTPURLResponse class]]){
+    if([navigationResponse.response isKindOfClass:[NSHTTPURLResponse class]]){
         headers = ((NSHTTPURLResponse *)navigationResponse.response).allHeaderFields;
         statusCode = ((NSHTTPURLResponse *)navigationResponse.response).statusCode;
-      
-      if (_sendCookies) {
-        NSURL *url = urlResponse.URL;
-        NSArray *cookies = [NSHTTPCookie cookiesWithResponseHeaderFields:headers forURL:url];
-        [[NSHTTPCookieStorage sharedHTTPCookieStorage] setCookies:cookies forURL:url mainDocumentURL:nil];
-      }
     }
 
     NSMutableDictionary<NSString *, id> *event = [self baseEvent];
