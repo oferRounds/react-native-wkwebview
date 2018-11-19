@@ -24,6 +24,8 @@
 }
 @end
 
+NSString *kCookiesFieldName = @"Cookie";
+
 @interface CRAWKWebView () <WKNavigationDelegate, RCTAutoInsetsProtocol, WKScriptMessageHandler, WKUIDelegate, UIScrollViewDelegate>
 
 @property (nonatomic, copy) RCTDirectEventBlock onLoadingStart;
@@ -170,16 +172,30 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
 {
     if (request.URL && _sendCookies) {
         NSDictionary *cookies = [NSHTTPCookie requestHeaderFieldsWithCookies:[[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:request.URL]];
-        if ([cookies objectForKey:@"Cookie"]) {
-            NSMutableURLRequest *mutableRequest = request.mutableCopy;
-            [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"Cookie"];
-            [mutableRequest addValue:cookies[@"Cookie"] forHTTPHeaderField:@"cookie"];
-            request = mutableRequest;
+        if ([cookies objectForKey:kCookiesFieldName]) {
+          NSMutableURLRequest *mutableRequest = request.mutableCopy;
+          [mutableRequest addValue:cookies[kCookiesFieldName] forHTTPHeaderField:kCookiesFieldName];
+          
+          [_webView.configuration.userContentController removeAllUserScripts];
+          [_webView.configuration.userContentController addUserScript:[self cookieInjectionScript]];
+          
+          request = mutableRequest;
         }
     }
 
     self.URL = request.URL;
     [_webView loadRequest:request];
+}
+
+-(WKUserScript *)cookieInjectionScript {
+  NSMutableString *source = [@"" mutableCopy];
+  
+  [[NSHTTPCookieStorage sharedHTTPCookieStorage].cookies enumerateObjectsUsingBlock:^(NSHTTPCookie * _Nonnull cookie, NSUInteger idx, BOOL * _Nonnull stop) {
+    [source appendString:@"document.cookie = '"];
+    [source appendString:[NSString stringWithFormat:@"%@=%@; path=%@; domain=%@;'\n", cookie.name, cookie.value, cookie.path, cookie.domain]];
+  }];
+  
+  return [[WKUserScript alloc] initWithSource:source injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES];
 }
 
 -(void)setAllowsLinkPreview:(BOOL)allowsLinkPreview
