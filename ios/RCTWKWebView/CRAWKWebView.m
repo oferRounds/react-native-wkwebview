@@ -71,6 +71,8 @@ RCT_NOT_IMPLEMENTED(- (instancetype)initWithCoder:(NSCoder *)aDecoder)
     
     WKWebViewConfiguration* config = [[WKWebViewConfiguration alloc] init];
     config.processPool = processPool;
+    config.suppressesIncrementalRendering = YES;
+
     
     
     WKUserContentController *userController = [WKUserContentController new];
